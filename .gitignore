@@ -3,11 +3,12 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Env  ###
+.env
+*.env
+
 ### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+.idea/
 *.iws
 *.iml
 *.ipr
@@ -34,5 +35,13 @@ build/
 ### VS Code ###
 .vscode/
 
-### Mac OS ###
+### Logs ###
+*.log
+logs/
+
+### OS ###
 .DS_Store
+Thumbs.db
+
+### Compiled files ###
+*.class

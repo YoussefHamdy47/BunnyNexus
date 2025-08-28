@@ -16,6 +16,10 @@
         <jda.version>5.1.2</jda.version>
         <mongo.version>5.2.1</mongo.version>
         <dotenv.version>3.0.0</dotenv.version>
+        <slf4j.version>2.0.17</slf4j.version>
+        <logback.version>1.5.18</logback.version>
+        <classgraph.version>4.8.177</classgraph.version>
+        <figlet.version>0.0.9</figlet.version>
     </properties>
 
     <dependencies>
@@ -45,6 +49,31 @@
             <groupId>io.github.cdimascio</groupId>
             <artifactId>dotenv-java</artifactId>
             <version>${dotenv.version}</version>
+        </dependency>
+
+        <!-- Swapped with Logback in real prod -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.github.classgraph</groupId>
+            <artifactId>classgraph</artifactId>
+            <version>${classgraph.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.lalyos</groupId>
+            <artifactId>jfiglet</artifactId>
+            <version>${figlet.version}</version>
         </dependency>
 
     </dependencies>

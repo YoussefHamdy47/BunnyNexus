@@ -1,17 +1,23 @@
 package org.bunnys;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
+import net.dv8tion.jda.api.requests.GatewayIntent;
+import org.bunnys.handler.Config;
+import org.bunnys.handler.BunnyNexus;
+import org.bunnys.handler.utils.handler.IntentHandler;
+
+@SuppressWarnings("unused")
 public class Main {
     public static void main(String[] args) {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        System.out.printf("Hello and welcome!");
+        Config config = Config.builder()
+                .version("2.0.0")
+                .debug(true)
+                .intents(IntentHandler.fromRaw(GatewayIntent.ALL_INTENTS))
+                .prefix("!!")
+                .developers("333644367539470337", "776580152163303445")
+                .eventsPackage("org.bunnys.events")
+                .commandsPackage("org.bunnys.commands.impl")
+                .build();
 
-        for (int i = 1; i <= 5; i++) {
-            //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-            // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-            System.out.println("i = " + i);
-        }
+        BunnyNexus client = new BunnyNexus(config);
     }
 }
