@@ -15,7 +15,7 @@ public class Main {
                 .prefix("!!")
                 .developers("333644367539470337", "776580152163303445")
                 .eventsPackage("org.bunnys.events")
-                .commandsPackage("org.bunnys.commands.impl")
+                .commandsPackage("org.bunnys.commands")
                 .build();
 
         BunnyNexus client = new BunnyNexus(config);

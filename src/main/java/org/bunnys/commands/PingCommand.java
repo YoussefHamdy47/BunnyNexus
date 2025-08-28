@@ -1,4 +1,4 @@
-package org.bunnys.commands.impl;
+package org.bunnys.commands;
 
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import org.bunnys.handler.BunnyNexus;
