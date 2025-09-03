@@ -1,7 +1,7 @@
 package org.bunnys.handler;
 
 import net.dv8tion.jda.api.requests.GatewayIntent;
-import org.bunnys.handler.events.DefaultEvents;
+import org.bunnys.handler.events.defaults.DefaultEvents;
 import org.bunnys.handler.utils.handler.EnvLoader;
 import org.bunnys.handler.utils.handler.logging.Logger;
 
@@ -18,6 +18,9 @@ public class Config {
 
     /** The bot's developer IDs */
     private final String[] developers;
+
+    /** Test servers for slash command registration */
+    private final String[] testServers;
 
     /** Whether to automatically login on BunnyNexus init */
     private final boolean autoLogin;
@@ -47,6 +50,7 @@ public class Config {
         this.token = this.resolveToken(builder.token);
         this.version = Objects.requireNonNull(builder.version, "Version must not be null");
         this.developers = builder.developers != null ? builder.developers.clone() : new String[0];
+        this.testServers = builder.testServers != null ? builder.testServers.clone() : new String[0];
         this.prefix = builder.prefix;
         this.eventsPackage = builder.eventsPackage;
         this.commandsPackage = builder.commandsPackage;
@@ -92,6 +96,10 @@ public class Config {
 
     public String[] developers() {
         return this.developers != null ? this.developers.clone() : new String[0];
+    }
+
+    public String[] testServers() {
+        return this.testServers != null ? this.testServers.clone() : new String[0];
     }
 
     public EnumSet<DefaultEvents> disabledDefaults() {
@@ -151,6 +159,7 @@ public class Config {
         private String token;
         private String version;
         private String[] developers = new String[0];
+        private String[] testServers = new String[0];
         private String prefix = "!"; // default
         private boolean autoLogin = true;
         private boolean debug = false;
@@ -185,6 +194,20 @@ public class Config {
                 developers[i] = developers[i].trim();
             }
             this.developers = developers;
+            return this;
+        }
+
+        public Builder testServers(String... testServers) {
+            if (testServers == null || testServers.length == 0) {
+                this.testServers = new String[0];
+                return this;
+            }
+            for (int i = 0; i < testServers.length; i++) {
+                if (testServers[i] == null || testServers[i].isBlank())
+                    throw new IllegalArgumentException("Test server IDs must be valid strings");
+                testServers[i] = testServers[i].trim();
+            }
+            this.testServers = testServers;
             return this;
         }
 

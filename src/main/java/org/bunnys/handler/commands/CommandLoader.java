@@ -14,25 +14,46 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * Loads MessageCommand and SlashCommand implementations via ClassGraph and reflection
- * Improvements over the original:
- * - More robust constructor matching (try {BunnyNexus, Config}, {BunnyNexus}, {Config}, no-arg)
- * - Parallel instantiation (CPU-bound reflection) with controlled parallelism
- * - Better logging and error isolation (a failing command won't stop the whole load)
- * - Returns immutable lists
+ * A utility class for dynamically loading command implementations
+ * <p>
+ * This class uses the ClassGraph library to scan a specified base package for
+ * implementations of {@link MessageCommand} and {@link SlashCommand}
+ * It leverages reflection to instantiate these command classes, with support
+ * for multiple constructor types to allow for dependency injection of
+ * the client and configuration objects
+ * Command instantiation is performed in parallel using a fixed thread pool
+ * to optimize loading time, especially for a large number of commands
+ * Error handling is robust, ensuring that a single failing command does not
+ * halt the entire loading process
+ * All returned lists of commands are immutable
+ * </p>
+ *
+ * @author Bunny
  */
 public final class CommandLoader {
     private final String basePackage;
     private final BunnyNexus client;
 
+    /**
+     * Constructs a new CommandLoader
+     *
+     * @param basePackage The package to scan for command implementations
+     * @param client      The main bot client instance, used for dependency
+     *                    injection
+     * @throws NullPointerException if the client is null
+     */
     public CommandLoader(String basePackage, BunnyNexus client) {
         this.basePackage = basePackage;
         this.client = Objects.requireNonNull(client, "Client cannot be null");
     }
 
-    /* =====================================================
-       MESSAGE COMMAND LOADING
-       ===================================================== */
+    /**
+     * Scans for and instantiates all concrete implementations of
+     * {@link MessageCommand}
+     *
+     * @return An unmodifiable list of instantiated message commands, or an empty
+     *         list if none are found
+     */
     public List<MessageCommand> loadMessageCommands() {
         if (basePackage == null || basePackage.isBlank())
             return List.of();
@@ -76,7 +97,8 @@ public final class CommandLoader {
         for (Future<MessageCommand> f : futures) {
             try {
                 MessageCommand cmd = f.get();
-                if (cmd != null) results.add(cmd);
+                if (cmd != null)
+                    results.add(cmd);
             } catch (ExecutionException ee) {
                 Logger.error("[CommandLoader] MessageCommand instantiation task threw",
                         ee.getCause() == null ? ee : ee.getCause());
@@ -87,10 +109,18 @@ public final class CommandLoader {
         }
 
         exec.shutdownNow();
-        Logger.debug(() -> "[CommandLoader] Instantiated " + results.size() + " message command(s).");
+        Logger.debug(() -> "[CommandLoader] Instantiated " + results.size() + " message command(s)");
         return Collections.unmodifiableList(results);
     }
 
+    /**
+     * Instantiates a single MessageCommand class safely
+     * This method attempts to find and invoke a suitable constructor for the class
+     *
+     * @param className The fully qualified name of the class to instantiate
+     * @return An instantiated {@link MessageCommand} object, or {@code null} if
+     *         instantiation fails
+     */
     private MessageCommand instantiateMessageSafely(String className) {
         Class<?> clazz;
         try {
@@ -115,28 +145,32 @@ public final class CommandLoader {
                 Constructor<?> ctor = clazz.getDeclaredConstructor(BunnyNexus.class, Config.class);
                 ctor.setAccessible(true);
                 return (MessageCommand) ctor.newInstance(client, client.getConfig());
-            } catch (NoSuchMethodException ignored) {}
+            } catch (NoSuchMethodException ignored) {
+            }
 
             // (BunnyNexus)
             try {
                 Constructor<?> ctor = clazz.getDeclaredConstructor(BunnyNexus.class);
                 ctor.setAccessible(true);
                 return (MessageCommand) ctor.newInstance(client);
-            } catch (NoSuchMethodException ignored) {}
+            } catch (NoSuchMethodException ignored) {
+            }
 
             // (Config)
             try {
                 Constructor<?> ctor = clazz.getDeclaredConstructor(Config.class);
                 ctor.setAccessible(true);
                 return (MessageCommand) ctor.newInstance(client.getConfig());
-            } catch (NoSuchMethodException ignored) {}
+            } catch (NoSuchMethodException ignored) {
+            }
 
             // ()
             try {
                 Constructor<?> ctor = clazz.getDeclaredConstructor();
                 ctor.setAccessible(true);
                 return (MessageCommand) ctor.newInstance();
-            } catch (NoSuchMethodException ignored) {}
+            } catch (NoSuchMethodException ignored) {
+            }
 
             Logger.error("[CommandLoader] No supported constructor found for " + className);
             return null;
@@ -146,9 +180,13 @@ public final class CommandLoader {
         }
     }
 
-    /* =====================================================
-       SLASH COMMAND LOADING
-       ===================================================== */
+    /**
+     * Scans for and instantiates all concrete implementations of
+     * {@link SlashCommand}
+     *
+     * @return An unmodifiable list of instantiated slash commands, or an empty list
+     *         if none are found
+     */
     public List<SlashCommand> loadSlashCommands() {
         if (basePackage == null || basePackage.isBlank())
             return List.of();
@@ -192,7 +230,8 @@ public final class CommandLoader {
         for (Future<SlashCommand> f : futures) {
             try {
                 SlashCommand cmd = f.get();
-                if (cmd != null) results.add(cmd);
+                if (cmd != null)
+                    results.add(cmd);
             } catch (ExecutionException ee) {
                 Logger.error("[CommandLoader] SlashCommand instantiation task threw",
                         ee.getCause() == null ? ee : ee.getCause());
@@ -203,10 +242,19 @@ public final class CommandLoader {
         }
 
         exec.shutdownNow();
-        Logger.debug(() -> "[CommandLoader] Instantiated " + results.size() + " slash command(s).");
+        Logger.debug(() -> "[CommandLoader] Instantiated " + results.size() + " slash command(s)");
         return Collections.unmodifiableList(results);
     }
 
+    /**
+     * Instantiates a single SlashCommand class safely
+     * This method attempts to find and invoke a no-argument constructor for the
+     * class
+     *
+     * @param className The fully qualified name of the class to instantiate
+     * @return An instantiated {@link SlashCommand} object, or {@code null} if
+     *         instantiation fails
+     */
     private SlashCommand instantiateSlashSafely(String className) {
         Class<?> clazz;
         try {
@@ -226,7 +274,7 @@ public final class CommandLoader {
         }
 
         try {
-            // For now we only support () constructor for slash commands
+            // For now, we only support () constructor for slash commands
             Constructor<?> ctor = clazz.getDeclaredConstructor();
             ctor.setAccessible(true);
             return (SlashCommand) ctor.newInstance();

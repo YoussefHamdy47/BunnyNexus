@@ -114,8 +114,7 @@ public class MessageCreate extends ListenerAdapter implements Event {
                     event,
                     Emojis.DEFAULT_ERROR + " Command Timed Out",
                     "Your command `" + cmd + "` took too long and was cancelled.\n" +
-                            "Please try again in a moment. (`" + traceId + "`)"
-            );
+                            "Please try again in a moment. (`" + traceId + "`)");
         } else {
             Logger.error("[" + EVENT_NAME + "] Command '" + cmd + "' errored for user " + userId + " (traceId="
                     + traceId + ")", ex);
@@ -124,8 +123,7 @@ public class MessageCreate extends ListenerAdapter implements Event {
                     Emojis.DEFAULT_ERROR + " Something went wrong",
                     "We ran into an issue while running `" + cmd + "`. This isn’t your fault.\n" +
                             "Please try again. If this keeps happening, share this code with support: `" + traceId
-                            + "`"
-            );
+                            + "`");
         }
     }
 

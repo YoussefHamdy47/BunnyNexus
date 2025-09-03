@@ -1,8 +1,6 @@
-package org.bunnys.handler.events;
+package org.bunnys.handler.events.defaults;
 
 import org.bunnys.handler.BunnyNexus;
-import org.bunnys.handler.events.defaults.ClientReady;
-import org.bunnys.handler.events.defaults.MessageCreate;
 import org.bunnys.handler.spi.Event;
 
 import java.util.function.Function;
