@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @author Bunny
  */
+@SuppressWarnings("unused")
 public class CommandRegistry {
     private final ConcurrentHashMap<String, CommandEntry> merged = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, MessageCommand> messageCommands = new ConcurrentHashMap<>();
@@ -34,7 +35,7 @@ public class CommandRegistry {
      * @param name The command name or alias
      * @return The canonical, normalized string
      */
-    private static String canonical(String name) {
+    public static String canonical(String name) {
         if (name == null)
             return "";
         return name.toLowerCase(Locale.ROOT).trim();
@@ -61,46 +62,48 @@ public class CommandRegistry {
         if (canonicalName.isBlank())
             throw new IllegalArgumentException("Command name cannot be blank");
 
-        // Build set of all keys to insert
+        // Collect all names (canonical + aliases)
         Set<String> keysToInsert = new LinkedHashSet<>();
         keysToInsert.add(canonicalName);
 
         for (String alias : cfg.aliases()) {
             String a = canonical(alias);
-            if (a.isBlank())
-                continue; // ignore blank aliases
-            keysToInsert.add(a);
+            if (!a.isBlank()) {
+                keysToInsert.add(a);
+            }
         }
 
         CommandEntry entry = CommandEntry.forMessage(cmd, cfg);
 
-        // Atomicity: synchronize the whole registration so we can check for conflicts
-        // and then insert
         synchronized (this) {
             // Check conflicts
             List<String> conflicts = new ArrayList<>();
-            for (String key : keysToInsert)
-                if (this.messageCommands.containsKey(key))
+            for (String key : keysToInsert) {
+                if (this.messageCommands.containsKey(key) || this.merged.containsKey(key)) {
                     conflicts.add(key);
+                }
+            }
 
             if (!conflicts.isEmpty()) {
                 String firstConflict = conflicts.getFirst();
-                String msg = "[CommandRegistry] Duplicate command key detected: " + firstConflict +
+                String msg = "[CommandRegistry] Duplicate message command key detected: " + firstConflict +
                         " (attempted to register " + cfg.commandName() + " / aliases=" + cfg.aliases() + ")";
                 Logger.error(msg);
                 throw new IllegalStateException(msg);
             }
 
-            // Insert into maps
+// Insert canonical first
             this.messageCommands.put(canonicalName, cmd);
             this.merged.put(canonicalName, entry);
 
+// Insert aliases
             for (String key : keysToInsert) {
                 if (key.equals(canonicalName))
-                    continue; // already inserted
+                    continue;
                 this.messageCommands.putIfAbsent(key, cmd);
-                this.merged.putIfAbsent(key, entry);
+                this.merged.put(key, entry);
             }
+
         }
 
         Logger.debug(() -> "[CommandRegistry] Registered message command: " + cfg.commandName()
@@ -137,11 +140,11 @@ public class CommandRegistry {
                 throw new IllegalStateException(msg);
             }
 
-            this.slashCommands.put(canonicalName, cmd);
+            this.slashCommands.putIfAbsent(canonicalName, cmd);
             this.merged.put(canonicalName, entry);
         }
 
-        Logger.debug(() -> "[CommandRegistry] Registered Slash Commands: " + cfg.name());
+        Logger.debug(() -> "[CommandRegistry] Registered Slash Command: " + cfg.name());
     }
 
     /**
@@ -217,6 +220,14 @@ public class CommandRegistry {
      */
     public Map<String, CommandEntry> mergedView() {
         return Collections.unmodifiableMap(this.merged);
+    }
+
+    public void clearMessageCommands() {
+        this.messageCommands.clear();
+    }
+
+    public void clearSlashCommands() {
+        this.slashCommands.clear();
     }
 
     /**
