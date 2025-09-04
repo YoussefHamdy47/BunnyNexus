@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @SuppressWarnings("unused")
 public class CommandRegistry {
-    private final ConcurrentHashMap<String, CommandEntry> merged = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, List<CommandEntry>> merged = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, MessageCommand> messageCommands = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, SlashCommand> slashCommands = new ConcurrentHashMap<>();
 
@@ -62,48 +62,36 @@ public class CommandRegistry {
         if (canonicalName.isBlank())
             throw new IllegalArgumentException("Command name cannot be blank");
 
-        // Collect all names (canonical + aliases)
-        Set<String> keysToInsert = new LinkedHashSet<>();
-        keysToInsert.add(canonicalName);
-
-        for (String alias : cfg.aliases()) {
-            String a = canonical(alias);
-            if (!a.isBlank()) {
-                keysToInsert.add(a);
-            }
-        }
-
         CommandEntry entry = CommandEntry.forMessage(cmd, cfg);
 
         synchronized (this) {
-            // Check conflicts
+            // Check for conflicts only inside message commands
             List<String> conflicts = new ArrayList<>();
-            for (String key : keysToInsert) {
-                if (this.messageCommands.containsKey(key) || this.merged.containsKey(key)) {
+            if (messageCommands.containsKey(canonicalName))
+                conflicts.add(canonicalName);
+            for (String alias : cfg.aliases()) {
+                String key = canonical(alias);
+                if (messageCommands.containsKey(key))
                     conflicts.add(key);
-                }
             }
 
             if (!conflicts.isEmpty()) {
                 String firstConflict = conflicts.getFirst();
-                String msg = "[CommandRegistry] Duplicate message command key detected: " + firstConflict +
-                        " (attempted to register " + cfg.commandName() + " / aliases=" + cfg.aliases() + ")";
+                String msg = "[CommandRegistry] Duplicate message command key detected: " + firstConflict
+                        + " (attempted to register " + cfg.commandName() + " / aliases=" + cfg.aliases() + ")";
                 Logger.error(msg);
                 throw new IllegalStateException(msg);
             }
 
-// Insert canonical first
+            // Register into message map
             this.messageCommands.put(canonicalName, cmd);
-            this.merged.put(canonicalName, entry);
+            addToMerged(canonicalName, CommandEntry.forMessage(cmd, cfg));
 
-// Insert aliases
-            for (String key : keysToInsert) {
-                if (key.equals(canonicalName))
-                    continue;
+            for (String alias : cfg.aliases()) {
+                String key = canonical(alias);
                 this.messageCommands.putIfAbsent(key, cmd);
-                this.merged.put(key, entry);
+                addToMerged(key, CommandEntry.forMessage(cmd, cfg));
             }
-
         }
 
         Logger.debug(() -> "[CommandRegistry] Registered message command: " + cfg.commandName()
@@ -127,7 +115,6 @@ public class CommandRegistry {
         Objects.requireNonNull(cfg, "cfg");
 
         String canonicalName = canonical(cfg.name());
-
         if (canonicalName.isBlank())
             throw new IllegalArgumentException("Slash Command name cannot be blank");
 
@@ -141,7 +128,7 @@ public class CommandRegistry {
             }
 
             this.slashCommands.putIfAbsent(canonicalName, cmd);
-            this.merged.put(canonicalName, entry);
+            addToMerged("/" + canonicalName, CommandEntry.forSlash(cmd, cfg));
         }
 
         Logger.debug(() -> "[CommandRegistry] Registered Slash Command: " + cfg.name());
@@ -153,10 +140,10 @@ public class CommandRegistry {
      * @param token The name or alias to look up
      * @return The {@link CommandEntry} if found, otherwise {@code null}
      */
-    public CommandEntry findMerged(String token) {
+    public List<CommandEntry> findMerged(String token) {
         if (token == null || token.isBlank())
             return null;
-        return this.merged.get(canonical(token));
+        return this.merged.getOrDefault(canonical(token), List.of());
     }
 
     /**
@@ -170,11 +157,9 @@ public class CommandRegistry {
         if (token == null || token.isBlank())
             return null;
 
-        CommandEntry entry = this.merged.get(canonical(token));
-        if (entry == null || entry.type() != CommandEntry.CommandType.MESSAGE)
-            return null;
-
-        return entry;
+        String key = canonical(token);
+        MessageCommand cmd = this.messageCommands.get(key);
+        return cmd != null ? CommandEntry.forMessage(cmd, cmd.initAndGetConfig()) : null;
     }
 
     /**
@@ -188,11 +173,9 @@ public class CommandRegistry {
         if (token == null || token.isBlank())
             return null;
 
-        CommandEntry entry = this.merged.get(canonical(token));
-        if (entry == null || entry.type() != CommandEntry.CommandType.SLASH)
-            return null;
-
-        return entry;
+        String key = canonical(token);
+        SlashCommand cmd = this.slashCommands.get(key);
+        return cmd != null ? CommandEntry.forSlash(cmd, cmd.initAndGetConfig()) : null;
     }
 
     /**
@@ -218,7 +201,7 @@ public class CommandRegistry {
      *
      * @return A map of canonical names to {@link CommandEntry} instances
      */
-    public Map<String, CommandEntry> mergedView() {
+    public Map<String, List<CommandEntry>> mergedView() {
         return Collections.unmodifiableMap(this.merged);
     }
 
@@ -228,6 +211,16 @@ public class CommandRegistry {
 
     public void clearSlashCommands() {
         this.slashCommands.clear();
+    }
+
+    private void addToMerged(String key, CommandEntry entry) {
+        this.merged.compute(key, (k, list) -> {
+            if (list == null)
+                list = new ArrayList<>();
+
+            list.add(entry);
+            return list;
+        });
     }
 
     /**
