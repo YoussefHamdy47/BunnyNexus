@@ -1,12 +1,15 @@
 package org.bunnys.commands;
 
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
-import org.bunnys.database.models.UserProfile;
-import org.bunnys.database.repositories.UserRepository;
+import org.bunnys.database.RepositoryFactory;
+import org.bunnys.database.entities.User;
 import org.bunnys.handler.BunnyNexus;
 import org.bunnys.handler.commands.slash.SlashCommandConfig;
 import org.bunnys.handler.database.providers.MongoProvider;
 import org.bunnys.handler.spi.SlashCommand;
+
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 
 public class RegisterCommand extends SlashCommand {
 
@@ -21,7 +24,6 @@ public class RegisterCommand extends SlashCommand {
         String userId = event.getUser().getId();
         String username = event.getUser().getName();
 
-        // Get Mongo provider from BunnyNexus
         MongoProvider mongo = client.getMongoProvider();
         if (mongo == null) {
             event.reply("❌ Database is not connected. Please try again later.")
@@ -30,22 +32,26 @@ public class RegisterCommand extends SlashCommand {
             return;
         }
 
-        UserRepository repo = new UserRepository(mongo.getConnection());
+        RepositoryFactory repos = new RepositoryFactory(mongo.getConnection());
 
-        // Check if user already exists
-        UserProfile existing = repo.findById(userId);
-        if (existing != null) {
-            event.reply("⚠️ You are already registered as **"
-                            + existing.getUsername() + "** (`" + existing.getUserId() + "`)")
-                    .setEphemeral(true)
-                    .queue();
-            return;
+        try {
+            Optional<User> existing = repos.users().findById(userId).get();
+            if (existing.isPresent()) {
+                event.reply("⚠️ You are already registered as **"
+                                + existing.get().getUsername() + "** (`" + existing.get().getUserId() + "`)")
+                        .setEphemeral(true)
+                        .queue();
+                return;
+            }
+
+            User newUser = new User(userId, username);
+            repos.users().save(newUser).get();
+
+            event.reply("✅ Registered profile for **" + username + "** (`" + userId + "`)").queue();
+
+        } catch (InterruptedException | ExecutionException e) {
+            event.reply("❌ Failed to register. Please try again later.").setEphemeral(true).queue();
+            e.printStackTrace();
         }
-
-        // Save new profile
-        UserProfile profile = new UserProfile(userId, username);
-        repo.save(profile);
-
-        event.reply("✅ Registered profile for **" + username + "** (`" + userId + "`)").queue();
     }
 }
