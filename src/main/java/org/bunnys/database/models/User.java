@@ -1,6 +1,7 @@
-package org.bunnys.database.entities;
+package org.bunnys.database.models;
 
 import org.bson.Document;
+import org.bunnys.database.entities.BaseEntity;
 
 public class User extends BaseEntity {
     private String userId;
