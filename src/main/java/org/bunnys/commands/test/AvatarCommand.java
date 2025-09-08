@@ -1,4 +1,4 @@
-package org.bunnys.commands;
+package org.bunnys.commands.test;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.events.interaction.command.UserContextInteractionEvent;
