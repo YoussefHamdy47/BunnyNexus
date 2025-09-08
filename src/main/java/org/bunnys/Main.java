@@ -23,5 +23,10 @@ public class Main {
                 .build();
 
         BunnyNexus client = new BunnyNexus(config);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutting down...");
+            client.shutdown();
+        }));
     }
 }
