@@ -1,33 +1,21 @@
 package org.bunnys;
 
-import net.dv8tion.jda.api.requests.GatewayIntent;
-import org.bunnys.handler.Config;
 import org.bunnys.handler.BunnyNexus;
-import org.bunnys.handler.events.defaults.DefaultEvents;
-import org.bunnys.handler.utils.handler.EnvLoader;
-import org.bunnys.handler.utils.handler.IntentHandler;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ApplicationContext;
 
-import java.util.EnumSet;
-
-@SuppressWarnings("unused")
+@SpringBootApplication
 public class Main {
+
     public static void main(String[] args) {
-        Config config = Config.builder()
-                .version("2.0.0")
-                .debug(true)
-               // .disableDefaultEvents(EnumSet.of(DefaultEvents.CLIENT_READY))
-                .intents(IntentHandler.fromRaw(GatewayIntent.ALL_INTENTS))
-                .prefix(EnvLoader.get("PREFIX"))
-                .developers(EnvLoader.get("DEVELOPERS").split(","))
-                .testServers(EnvLoader.get("TEST_SERVERS").split(","))
-                .eventsPackage("org.bunnys.events")
-                .commandsPackage("org.bunnys.commands")
-                .connectToDatabase(true)
-                .mongo("MongoURI")
-                .build();
+        SpringApplication app = new SpringApplication(Main.class);
 
-        BunnyNexus client = new BunnyNexus(config);
+        app.setLogStartupInfo(false);
+        app.setBannerMode(org.springframework.boot.Banner.Mode.OFF);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(client::shutdown));
+        ApplicationContext context = app.run(args);
+
+        context.getBean(BunnyNexus.class);
     }
 }

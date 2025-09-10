@@ -8,6 +8,8 @@ import org.bunnys.handler.spi.ContextCommand;
 import org.bunnys.handler.spi.MessageCommand;
 import org.bunnys.handler.spi.SlashCommand;
 import org.bunnys.handler.utils.handler.logging.Logger;
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
+import org.springframework.context.ApplicationContext;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -19,11 +21,9 @@ import java.util.function.Supplier;
  *
  * <p>
  * This utility class is responsible for discovering, initializing, and
- * registering
- * all command types (slash, message, and context commands) found within a
- * specified
- * package. It ensures that commands are properly prepared for use by the bot's
- * {@link CommandRegistry}
+ * registering all command types (slash, message, and context commands) found
+ * within a specified package. It ensures that commands are properly prepared
+ * for use by the bot's {@link CommandRegistry}
  * </p>
  */
 public final class CommandLifecycle {
@@ -39,16 +39,22 @@ public final class CommandLifecycle {
      * {@link Config}
      * </p>
      *
-     * @param config     The bot's configuration, containing the commands package
-     * @param bunnyNexus The central {@link BunnyNexus} client instance
-     * @param registry   The {@link CommandRegistry} where commands will be
-     *                   registered
+     * @param config             The bot's configuration, containing the commands
+     *                           package
+     * @param bunnyNexus         The central {@link BunnyNexus} client instance
+     * @param registry           The {@link CommandRegistry} where commands will be
+     *                           registered
+     * @param applicationContext The Spring ApplicationContext for dependency
+     *                           injection
+     * @param beanFactory        The AutowireCapableBeanFactory for wiring
+     *                           dependencies
      */
-    public static void loadAndRegisterCommands(Config config, BunnyNexus bunnyNexus, CommandRegistry registry) {
+    public static void loadAndRegisterCommands(Config config, BunnyNexus bunnyNexus, CommandRegistry registry,
+            ApplicationContext applicationContext, AutowireCapableBeanFactory beanFactory) {
         if (config.commandsPackage() == null || config.commandsPackage().isBlank())
             return;
 
-        CommandLoader loader = new CommandLoader(config.commandsPackage(), bunnyNexus);
+        CommandLoader loader = new CommandLoader(config.commandsPackage(), bunnyNexus, applicationContext, beanFactory);
 
         registerCommandType(
                 "message",

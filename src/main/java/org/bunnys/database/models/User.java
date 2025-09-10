@@ -1,50 +1,84 @@
 package org.bunnys.database.models;
 
-import org.bson.Document;
-import org.bunnys.database.entities.BaseEntity;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-public class User extends BaseEntity {
-    private String userId;
+@Document(collection = "users")
+public class User {
+    @Id
+    private String ID;
+
+    @NotNull
+    @NotBlank
+    @Indexed(unique = true)
+    private String userID;
+
+    @NotNull
+    @NotBlank
     private String username;
+
+    // Optional fields
+    private String messageID;
+    private String guildID;
 
     public User() {
     }
 
-    public User(String userId, String username) {
-        this.userId = userId;
+    public User(String userID, String username) {
+        this.userID = userID;
         this.username = username;
-        validate();
     }
 
-    @Override
-    public Document toDocument() {
-        Document doc = super.toDocument();
-        doc.put("userId", userId);
-        doc.put("username", username);
-        return doc;
+    public String getId() {
+        return ID;
     }
 
-    @Override
-    public void fromDocument(Document document) {
-        super.fromDocument(document);
-        this.userId = document.getString("userId");
-        this.username = document.getString("username");
+    public void setId(String id) {
+        this.ID = id;
     }
 
-    @Override
-    public void validate() {
-        if (userId == null || userId.trim().isEmpty())
-            throw new IllegalArgumentException("User ID cannot be null or empty");
-        if (username == null || username.trim().isEmpty())
-            throw new IllegalArgumentException("Username cannot be null or empty");
+    public String getUserID() {
+        return userID;
     }
 
-    // Getters
-    public String getUserId() {
-        return userId;
+    public void setUserID(String userID) {
+        this.userID = userID;
     }
 
     public String getUsername() {
         return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getMessageID() {
+        return messageID;
+    }
+
+    public void setMessageID(String messageID) {
+        this.messageID = messageID;
+    }
+
+    public String getGuildID() {
+        return guildID;
+    }
+
+    public void setGuildID(String guildID) {
+        this.guildID = guildID;
+    }
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "id='" + ID + '\'' +
+                ", userID='" + userID + '\'' +
+                ", username='" + username + '\'' +
+                ", guildID='" + guildID + '\'' +
+                '}';
     }
 }

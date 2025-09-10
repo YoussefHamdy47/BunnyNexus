@@ -50,6 +50,11 @@
         <logback.version>1.5.18</logback.version>
         <classgraph.version>4.8.177</classgraph.version>
         <figlet.version>0.0.9</figlet.version>
+        <springmongo.version>4.4.4</springmongo.version>
+        <jakarta.validation.version>3.1.0</jakarta.validation.version>
+        <springcontext.version>6.2.6</springcontext.version>
+        <springboot.version>3.3.5</springboot.version>
+        <javax.annotation.version>1.2</javax.annotation.version>
     </properties>
 
     <dependencies>
@@ -81,7 +86,36 @@
             <version>${dotenv.version}</version>
         </dependency>
 
-        <!-- Swapped with Logback in real prod -->
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-mongodb</artifactId>
+            <version>${springmongo.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>${springcontext.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+            <version>${springboot.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+            <version>${jakarta.validation.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>${javax.annotation.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>

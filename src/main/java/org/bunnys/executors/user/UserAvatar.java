@@ -1,4 +1,4 @@
-package org.bunnys.executors;
+package org.bunnys.executors.user;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;

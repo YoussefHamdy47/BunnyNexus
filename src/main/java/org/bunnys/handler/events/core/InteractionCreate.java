@@ -91,7 +91,7 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
     @Override
     public void register(@NotNull JDA jda) {
         Objects.requireNonNull(jda, "JDA instance cannot be null");
-        Logger.info("[" + EVENT_NAME + "] Event listener registered with JDA");
+        Logger.debug(() -> "[" + EVENT_NAME + "] Event listener registered with JDA");
     }
 
     /**
@@ -241,7 +241,7 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
                             Logger.error("[" + EVENT_NAME + "] User context command '" + commandName
                                     + "' failed (traceId=" + traceId + ")", unwrapCompletionException(ex));
                         } else {
-                            Logger.info("[" + EVENT_NAME + "] User context command '" + commandName
+                            Logger.debug(() -> "[" + EVENT_NAME + "] User context command '" + commandName
                                     + "' executed (traceId=" + traceId + ")");
                         }
                     });
@@ -335,7 +335,7 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
                         handleSlashCommandError(event, commandName, userId, traceId, rootCause);
                     } else {
                         metrics.recordCommandSuccess(commandName, userId);
-                        Logger.info("[" + EVENT_NAME + "] Command '" + commandName
+                        Logger.debug(() -> "[" + EVENT_NAME + "] Command '" + commandName
                                 + "' completed successfully (traceId=" + traceId + ")");
                     }
                 });

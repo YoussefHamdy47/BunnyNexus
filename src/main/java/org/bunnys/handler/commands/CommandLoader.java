@@ -8,6 +8,8 @@ import org.bunnys.handler.spi.ContextCommand;
 import org.bunnys.handler.spi.MessageCommand;
 import org.bunnys.handler.spi.SlashCommand;
 import org.bunnys.handler.utils.handler.logging.Logger;
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
+import org.springframework.context.ApplicationContext;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
@@ -30,7 +32,7 @@ import java.util.function.Function;
  * @param client      The central {@link BunnyNexus} client instance
  */
 @SuppressWarnings("unused")
-public record CommandLoader(String basePackage, BunnyNexus client) {
+public record CommandLoader(String basePackage, BunnyNexus client, ApplicationContext context, AutowireCapableBeanFactory beanFactory) {
     /** The maximum number of threads to use for command instantiation */
     private static final int MAX_THREADS = 8;
     /** A shared empty array to avoid creating new ones */
@@ -41,11 +43,14 @@ public record CommandLoader(String basePackage, BunnyNexus client) {
      *
      * @param basePackage The root package to scan
      * @param client      The {@link BunnyNexus} client instance
+     * @param context     The context for SpringBoot
      * @throws NullPointerException if the client is null
      */
-    public CommandLoader(String basePackage, BunnyNexus client) {
+    public CommandLoader(String basePackage, BunnyNexus client, ApplicationContext context, AutowireCapableBeanFactory beanFactory) {
         this.basePackage = basePackage;
         this.client = Objects.requireNonNull(client, "Client cannot be null");
+        this.context = context;
+        this.beanFactory = beanFactory;
     }
 
     /**
@@ -289,14 +294,28 @@ public record CommandLoader(String basePackage, BunnyNexus client) {
             return null;
         }
 
-        if (!isInstantiableClass(clazz, expectedType)) {
-            return null;
+        if (!isInstantiableClass(clazz, expectedType)) return null;
+
+        if (context != null) {
+            try {
+                String beanName = clazz.getSimpleName().substring(0, 1).toLowerCase() + clazz.getSimpleName().substring(1);
+                if (context.containsBean(beanName)) {
+                    return expectedType.cast(context.getBean(beanName));
+                }
+            } catch (Exception e) {
+                Logger.error("[CommandLoader] Failed to get Spring bean for " + className, e);
+            }
         }
 
         try {
-            return constructorTrier.apply(clazz);
+            T instance = constructorTrier.apply(clazz);
+            if (instance != null && beanFactory != null) {
+                beanFactory.autowireBean(instance);
+                Logger.debug("Successfully autowired dependencies for " + className);
+            }
+            return instance;
         } catch (Throwable t) {
-            Logger.error("[CommandLoader] Failed to instantiate " + className + ": " + t.getMessage(), t);
+            Logger.error("[CommandLoader] Failed to instantiate or autowire " + className + ": " + t.getMessage(), t);
             return null;
         }
     }

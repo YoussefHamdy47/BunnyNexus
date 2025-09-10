@@ -323,4 +323,26 @@ public final class MongoProvider implements DatabaseProvider<MongoDatabase> {
                                 .serverSelectionTimeout(config.serverSelectionTimeoutMS(), TimeUnit.MILLISECONDS))
                         .build());
     }
+
+    /**
+     * Retrieves the established {@link MongoClient} instance.
+     *
+     * <p>
+     * This method is intended to be called after a successful connection has
+     * been established via the `connect()` method. It provides access to the
+     * connected client for performing database operations.
+     * </p>
+     *
+     * @return The active {@link MongoClient} instance.
+     * @throws IllegalStateException if the client has not been connected yet,
+     *                               or if the connection has been closed.
+     */
+    public MongoClient getClient() {
+        MongoClient currentClient = this.client.get();
+
+        if (currentClient == null)
+            throw new IllegalStateException("MongoDB not connected. Call connect() first or check connection status");
+
+        return currentClient;
+    }
 }

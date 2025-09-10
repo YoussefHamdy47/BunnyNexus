@@ -6,16 +6,17 @@ import org.bunnys.handler.database.providers.MongoProvider;
 import org.bunnys.handler.events.EventRegistry;
 import org.bunnys.handler.lifecycle.*;
 import org.bunnys.handler.utils.handler.logging.Logger;
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
+import org.springframework.context.ApplicationContext;
 
 /**
  * The main entry point for the BunnyNexus application.
  *
  * <p>
  * This class orchestrates the initialization and lifecycle management of the
- * bot,
- * including connecting to Discord via a {@link ShardManager}, loading commands
- * and
- * events, and managing database connections. It acts as the central hub for
+ * bot, including connecting to Discord via a {@link ShardManager}, loading
+ * commands
+ * and events, and managing database connections. It acts as the central hub for
  * accessing core components like the {@link CommandRegistry} and
  * {@link MongoProvider}.
  * </p>
@@ -25,8 +26,7 @@ import org.bunnys.handler.utils.handler.logging.Logger;
  * and provides a clean, public API for managing its state, such as updating
  * the token, reconnecting, and graceful shutdown. All core lifecycle events
  * are delegated to dedicated handler classes in the
- * {@code org.bunnys.handler.lifecycle}
- * package.
+ * {@code org.bunnys.handler.lifecycle} package.
  * </p>
  *
  * @author bunny
@@ -35,6 +35,8 @@ import org.bunnys.handler.utils.handler.logging.Logger;
 public class BunnyNexus {
     private final Config config;
     private volatile ShardManager shardManager;
+    private final ApplicationContext applicationContext;
+    private final AutowireCapableBeanFactory beanFactory;
 
     /**
      * The registry for all bot commands
@@ -67,16 +69,23 @@ public class BunnyNexus {
      * Discord.
      * </p>
      *
-     * @param config The configuration object containing bot settings. Cannot be
-     *               {@code null}.
+     * @param config             The configuration object containing bot settings.
+     *                           Cannot be
+     *                           {@code null}.
+     * @param applicationContext The Spring ApplicationContext for dependency
+     *                           injection.
+     * @param beanFactory        The AutowireCapableBeanFactory for wiring
+     *                           dependencies.
      * @throws IllegalArgumentException If the provided {@code config} is
      *                                  {@code null}.
      */
-    public BunnyNexus(Config config) {
+    public BunnyNexus(Config config, ApplicationContext applicationContext, AutowireCapableBeanFactory beanFactory) {
         if (config == null)
             throw new IllegalArgumentException("Config cannot be null");
 
         this.config = config;
+        this.applicationContext = applicationContext;
+        this.beanFactory = beanFactory;
 
         if (this.config.autoLogin())
             this.login();
@@ -96,17 +105,17 @@ public class BunnyNexus {
      * <li>Initializing the database connection if configured.</li>
      * </ul>
      */
-    private void login() {
+    public void login() {
         LoggerLifecycle.attachLogger(config);
         StartupLogger.logStartupInfo(config);
 
         this.shardManager = ShardManagerInitializer.initShardManager(config);
 
         EventLifecycle.loadAndRegisterEvents(config, this, shardManager);
-        CommandLifecycle.loadAndRegisterCommands(config, this, commandRegistry);
+        CommandLifecycle.loadAndRegisterCommands(config, this, commandRegistry, applicationContext, beanFactory);
 
         if (this.config.connectToDatabase()) {
-            DatabaseLifecycle.initialize(this.config).join();
+            DatabaseLifecycle.initialize(this.config.databaseConfig()).join();
             this.mongoProvider = (MongoProvider) DatabaseLifecycle.getMongoProvider();
         }
     }
@@ -173,7 +182,7 @@ public class BunnyNexus {
 
         DatabaseLifecycle.shutdown().join();
 
-        DatabaseLifecycle.initialize(this.config).join();
+        DatabaseLifecycle.initialize(this.config.databaseConfig()).join();
         this.mongoProvider = (MongoProvider) DatabaseLifecycle.getMongoProvider();
     }
 
@@ -237,6 +246,24 @@ public class BunnyNexus {
      */
     public MongoProvider getMongoProvider() {
         return mongoProvider;
+    }
+
+    /**
+     * Gets the Spring ApplicationContext.
+     *
+     * @return The {@link ApplicationContext} instance.
+     */
+    public ApplicationContext getApplicationContext() {
+        return applicationContext;
+    }
+
+    /**
+     * Gets the AutowireCapableBeanFactory.
+     *
+     * @return The {@link AutowireCapableBeanFactory} instance.
+     */
+    public AutowireCapableBeanFactory getBeanFactory() {
+        return beanFactory;
     }
 
     /* -------------------- Internal use -------------------- */
