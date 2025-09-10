@@ -1,4 +1,4 @@
-package org.bunnys.handler.events.defaults;
+package org.bunnys.handler.events.core;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
@@ -27,19 +27,52 @@ import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * A core event listener for handling all types of JDA interactions
+ *
+ * <p>
+ * This class serves as the primary dispatcher for slash commands, context
+ * commands
+ * (user and message), and command autocomplete interactions. It manages the
+ * asynchronous execution of commands, handles command timeouts and errors,
+ * and records metrics for command usage
+ * </p>
+ */
 @SuppressWarnings("unused")
 public final class InteractionCreate extends ListenerAdapter implements Event {
 
+    /** The name of this event handler for logging purposes */
     private static final String EVENT_NAME = "InteractionCreate";
+    /** The maximum time a command is allowed to run before being cancelled */
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(45);
+    /** The duration to wait for the command executor to shut down gracefully */
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
+    /** The length of the unique trace ID used for logging */
     private static final int TRACE_ID_LENGTH = 8;
 
+    /** The main {@link BunnyNexus} client instance */
     private final BunnyNexus client;
+    /** The executor service for running commands on a separate thread pool */
     private final ExecutorService commandExecutor;
+    /** The metrics tracker for recording command performance and usage */
     private final CommandMetrics metrics;
+    /**
+     * A flag to indicate if a shutdown has been initiated, preventing new commands
+     * from running
+     */
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
 
+    /**
+     * Constructs the interaction handler
+     *
+     * <p>
+     * Initializes the client, creates a dedicated thread pool for command
+     * execution, and sets up the command metrics tracker
+     * </p>
+     *
+     * @param client The {@link BunnyNexus} client instance, cannot be null
+     * @throws NullPointerException if the client is null
+     */
     public InteractionCreate(@NotNull BunnyNexus client) {
         this.client = Objects.requireNonNull(client, "BunnyNexus client cannot be null");
         this.commandExecutor = createCommandExecutor();
@@ -49,13 +82,29 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
                 () -> "[" + EVENT_NAME + "] Initialized with command timeout: " + COMMAND_TIMEOUT.toSeconds() + "s");
     }
 
+    /**
+     * Registers this listener with the JDA instance
+     *
+     * @param jda The {@link JDA} instance to register with, cannot be null
+     * @throws NullPointerException if the JDA instance is null
+     */
     @Override
     public void register(@NotNull JDA jda) {
         Objects.requireNonNull(jda, "JDA instance cannot be null");
-        jda.addEventListener(this);
         Logger.info("[" + EVENT_NAME + "] Event listener registered with JDA");
     }
 
+    /**
+     * Handles all incoming slash command interactions
+     *
+     * <p>
+     * This method retrieves the command from the registry, performs validation,
+     * and then delegates the execution to a separate thread. It also manages
+     * error reporting and metrics for each command invocation
+     * </p>
+     *
+     * @param event The {@link SlashCommandInteractionEvent}
+     */
     @Override
     public void onSlashCommandInteraction(@NotNull SlashCommandInteractionEvent event) {
         if (isShutdown.get()) {
@@ -107,6 +156,17 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Handles all incoming command autocomplete interactions
+     *
+     * <p>
+     * This method finds the appropriate command and delegates the autocomplete
+     * logic to it. Autocomplete requests are not run on the command executor
+     * since they should be fast and non-blocking
+     * </p>
+     *
+     * @param event The {@link CommandAutoCompleteInteractionEvent}
+     */
     @Override
     public void onCommandAutoCompleteInteraction(@NotNull CommandAutoCompleteInteractionEvent event) {
         if (isShutdown.get()) {
@@ -142,6 +202,16 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Handles user context menu interactions
+     *
+     * <p>
+     * This method finds the user context command and executes it on a
+     * separate thread, logging any failures
+     * </p>
+     *
+     * @param event The {@link UserContextInteractionEvent}
+     */
     @Override
     public void onUserContextInteraction(@NotNull UserContextInteractionEvent event) {
         if (isShutdown.get())
@@ -181,6 +251,16 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Handles message context menu interactions
+     *
+     * <p>
+     * This method finds the message context command and executes it on a
+     * separate thread, logging any failures
+     * </p>
+     *
+     * @param event The {@link MessageContextInteractionEvent}
+     */
     @Override
     public void onMessageContextInteraction(@NotNull MessageContextInteractionEvent event) {
         if (isShutdown.get())
@@ -220,6 +300,24 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Asynchronously executes a slash command
+     *
+     * <p>
+     * This method wraps the command execution in a {@link CompletableFuture} with a
+     * timeout,
+     * ensuring that long-running commands do not block the thread pool. It also
+     * handles
+     * success and failure callbacks
+     * </p>
+     *
+     * @param event       The {@link SlashCommandInteractionEvent}
+     * @param command     The {@link SlashCommand} to execute
+     * @param config      The command's configuration
+     * @param commandName The name of the command
+     * @param userId      The ID of the user who invoked the command
+     * @param traceId     The unique trace ID for this interaction
+     */
     private void executeCommandAsync(@NotNull SlashCommandInteractionEvent event,
             @NotNull SlashCommand command,
             @NotNull SlashCommandConfig config,
@@ -243,6 +341,21 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
                 });
     }
 
+    /**
+     * The core command execution logic
+     *
+     * <p>
+     * This method is run on a worker thread. It measures the execution time
+     * of the command and calls the command's {@code execute} method. It's
+     * designed to handle exceptions by wrapping them in a {@link RuntimeException}
+     * for the parent {@link CompletableFuture} to catch
+     * </p>
+     *
+     * @param event   The {@link SlashCommandInteractionEvent}
+     * @param command The {@link SlashCommand} to execute
+     * @param config  The command's configuration
+     * @param traceId The unique trace ID
+     */
     private void runCommand(@NotNull SlashCommandInteractionEvent event,
             @NotNull SlashCommand command,
             @NotNull SlashCommandConfig config,
@@ -268,6 +381,20 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Handles errors that occur during slash command execution
+     *
+     * <p>
+     * This method logs the error, determines if it was a timeout, and then
+     * sends an appropriate, user-friendly error message to the interaction channel
+     * </p>
+     *
+     * @param event       The {@link SlashCommandInteractionEvent}
+     * @param commandName The name of the failed command
+     * @param userId      The ID of the user who invoked the command
+     * @param traceId     The unique trace ID
+     * @param exception   The exception that occurred
+     */
     private void handleSlashCommandError(@NotNull SlashCommandInteractionEvent event,
             @NotNull String commandName,
             @NotNull String userId,
@@ -281,9 +408,20 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         sendUserErrorMessage(event, errorMsg.title(), errorMsg.description());
     }
 
+    /**
+     * A simple record for holding error message data
+     */
     private record ErrorMessage(String title, String description) {
     }
 
+    /**
+     * Creates a user-friendly error message based on the exception type
+     *
+     * @param commandName The name of the failed command
+     * @param traceId     The unique trace ID
+     * @param isTimeout   A flag indicating if the error was a timeout
+     * @return An {@link ErrorMessage} record
+     */
     private ErrorMessage createErrorMessage(String commandName, String traceId, boolean isTimeout) {
         if (isTimeout) {
             return new ErrorMessage(
@@ -299,6 +437,15 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Logs the command error to the console
+     *
+     * @param commandName The name of the failed command
+     * @param userId      The ID of the user
+     * @param traceId     The unique trace ID
+     * @param exception   The exception that occurred
+     * @param isTimeout   A flag indicating a timeout error
+     */
     private void logError(String commandName, String userId, String traceId, Throwable exception, boolean isTimeout) {
         if (isTimeout) {
             Logger.warning("[" + EVENT_NAME + "] Command '" + commandName + "' timed out after "
@@ -309,6 +456,13 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Sends an ephemeral error message to the user via the interaction hook
+     *
+     * @param event       The {@link SlashCommandInteractionEvent}
+     * @param title       The title of the error embed
+     * @param description The description of the error embed
+     */
     private void sendUserErrorMessage(@NotNull SlashCommandInteractionEvent event,
             @NotNull String title,
             @NotNull String description) {
@@ -328,6 +482,15 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Initiates a graceful shutdown of the command executor service
+     *
+     * <p>
+     * This method prevents new commands from being accepted, waits for a
+     * specified period for running tasks to complete, and then forces
+     * termination if necessary
+     * </p>
+     */
     public void shutdown() {
         if (isShutdown.getAndSet(true)) {
             Logger.debug(() -> "[" + EVENT_NAME + "] Shutdown already initiated");
@@ -351,6 +514,18 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Creates a dedicated thread pool for command execution
+     *
+     * <p>
+     * This is a custom thread pool configured with a core size, max size, and
+     * a bounded queue to prevent resource exhaustion. It uses a
+     * {@link java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy} to handle
+     * saturated queues
+     * </p>
+     *
+     * @return A configured {@link ExecutorService}
+     */
     @NotNull
     private ExecutorService createCommandExecutor() {
         int corePoolSize = 2;
@@ -375,6 +550,18 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
                 new ThreadPoolExecutor.CallerRunsPolicy());
     }
 
+    /**
+     * Unwraps a {@link CompletionException} or {@link ExecutionException} to get
+     * the true cause
+     *
+     * <p>
+     * This is a utility method to simplify error handling for
+     * {@link CompletableFuture}
+     * </p>
+     *
+     * @param exception The exception to unwrap
+     * @return The root cause of the exception
+     */
     @NotNull
     private static Throwable unwrapCompletionException(@NotNull Throwable exception) {
         if (exception instanceof CompletionException || exception instanceof ExecutionException) {
@@ -384,6 +571,11 @@ public final class InteractionCreate extends ListenerAdapter implements Event {
         return exception;
     }
 
+    /**
+     * Generates a unique, short trace ID for logging purposes
+     *
+     * @return A string representing a unique trace ID
+     */
     @NotNull
     private static String generateTraceId() {
         return UUID.randomUUID().toString().replace("-", "").substring(0, TRACE_ID_LENGTH);

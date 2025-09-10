@@ -1,4 +1,4 @@
-package org.bunnys.handler.events.defaults;
+package org.bunnys.handler.events.core;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
@@ -22,19 +22,41 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Thin orchestrator for message commands:
- * - Delegates parsing, validation, metrics, execution
+ * An orchestrator for handling and executing message commands
+ *
+ * <p>
+ * This class acts as a central handler for all incoming Discord messages. It
+ * delegates the parsing, validation, and execution of message-based commands to
+ * specialized utility classes, while also managing command metrics, timeouts,
+ * and error handling in a robust, asynchronous manner
+ * </p>
  */
 @SuppressWarnings("unused")
 public class MessageCreate extends ListenerAdapter implements Event {
+    /** The name of this event handler for logging purposes */
     private static final String EVENT_NAME = "MessageCreate";
+    /** The maximum time a command is allowed to run before being cancelled */
     private static final int COMMAND_TIMEOUT_SECONDS = 30;
-    private static final int ERROR_DELETE_SECONDS = 8; // how long error notices stay visible
+    /** The duration in seconds an ephemeral error message remains visible */
+    private static final int ERROR_DELETE_SECONDS = 8;
 
+    /** The main {@link BunnyNexus} client instance */
     private final BunnyNexus client;
+    /** The executor service for running commands asynchronously */
     private final ExecutorService commandExecutor;
+    /** The metrics tracker for recording command performance and usage */
     private final CommandMetrics metrics;
 
+    /**
+     * Constructs the message command handler
+     *
+     * <p>
+     * Initializes a cached thread pool to handle command execution asynchronously,
+     * ensuring the main JDA event thread remains unblocked
+     * </p>
+     *
+     * @param client The {@link BunnyNexus} client instance
+     */
     public MessageCreate(BunnyNexus client) {
         this.client = client;
         this.commandExecutor = Executors.newCachedThreadPool(r -> {
@@ -47,11 +69,27 @@ public class MessageCreate extends ListenerAdapter implements Event {
         this.metrics = new CommandMetrics();
     }
 
+    /**
+     * Registers this listener with the JDA instance
+     *
+     * @param jda The {@link JDA} instance to register with
+     */
     @Override
     public void register(JDA jda) {
-        jda.addEventListener(this);
     }
 
+    /**
+     * The main event handler for incoming messages
+     *
+     * <p>
+     * This method is invoked by JDA for every message received. It first
+     * attempts to parse the message as a command. If a valid command is found,
+     * it performs validation and then executes the command on a separate thread
+     * using a {@link CompletableFuture} with a timeout
+     * </p>
+     *
+     * @param event The {@link MessageReceivedEvent} containing the message data
+     */
     @Override
     public void onMessageReceived(@NotNull MessageReceivedEvent event) {
         MessageCommandParser.ParseResult parseResult = MessageCommandParser.parse(client, event);
@@ -91,6 +129,19 @@ public class MessageCreate extends ListenerAdapter implements Event {
                 });
     }
 
+    /**
+     * Executes the command logic
+     *
+     * <p>
+     * This method is run asynchronously. It measures the execution time and
+     * records it via the metrics system. Any exceptions during command execution
+     * are wrapped and re-thrown for the error handler to catch
+     * </p>
+     *
+     * @param event       The {@link MessageReceivedEvent}
+     * @param parseResult The result of the command parsing
+     * @param config      The command's configuration
+     */
     private void runCommand(MessageReceivedEvent event,
             MessageCommandParser.ParseResult parseResult,
             MessageCommandConfig config) {
@@ -103,6 +154,20 @@ public class MessageCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Handles command execution errors and sends a user-friendly message
+     *
+     * <p>
+     * This method logs the exception, generates a unique trace ID for
+     * correlation, and sends an embed to the user informing them of the failure,
+     * differentiating between a timeout and a generic error
+     * </p>
+     *
+     * @param event  The {@link MessageReceivedEvent}
+     * @param cmd    The name of the command that failed
+     * @param userId The ID of the user who ran the command
+     * @param ex     The exception that occurred
+     */
     private void handleError(MessageReceivedEvent event, String cmd, String userId, Throwable ex) {
         // Correlate logs & user message with a short trace id
         String traceId = UUID.randomUUID().toString().substring(0, 8);
@@ -127,6 +192,19 @@ public class MessageCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Sends an ephemeral error message to the user
+     *
+     * <p>
+     * This utility method builds an embed and sends it to the channel where
+     * the command was invoked. The message is queued to be deleted automatically
+     * after a short duration for a clean user experience
+     * </p>
+     *
+     * @param event       The {@link MessageReceivedEvent}
+     * @param title       The title of the error embed
+     * @param description The description of the error embed
+     */
     private void sendUserError(MessageReceivedEvent event, String title, String description) {
         EmbedBuilder embed = new EmbedBuilder()
                 .setColor(ColorCodes.ERROR_RED)
@@ -144,6 +222,15 @@ public class MessageCreate extends ListenerAdapter implements Event {
 
     }
 
+    /**
+     * Shuts down the command executor service gracefully
+     *
+     * <p>
+     * This method is called during the bot's shutdown process to ensure all
+     * running command tasks are completed or terminated within a reasonable
+     * timeframe, preventing resource leaks
+     * </p>
+     */
     public void shutdown() {
         commandExecutor.shutdown();
         try {
@@ -156,6 +243,11 @@ public class MessageCreate extends ListenerAdapter implements Event {
         }
     }
 
+    /**
+     * Generates a unique thread ID for logging purposes
+     *
+     * @return The thread ID
+     */
     private static long tId() {
         return Thread.currentThread().threadId();
     }
