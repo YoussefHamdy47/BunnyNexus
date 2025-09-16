@@ -25,18 +25,41 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${springboot.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
   <properties>
-    <classgraph.version>4.8.177</classgraph.version>
-    <maven.compiler.source>21</maven.compiler.source>
-    <mongo.version>5.2.1</mongo.version>
-    <jda.version>5.1.2</jda.version>
-    <maven.compiler.target>21</maven.compiler.target>
+    <javax.annotation.version>1.2</javax.annotation.version>
     <slf4j.version>2.0.17</slf4j.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <figlet.version>0.0.9</figlet.version>
     <logback.version>1.5.18</logback.version>
     <dotenv.version>3.0.0</dotenv.version>
+    <classgraph.version>4.8.177</classgraph.version>
+    <springcontext.version>6.2.6</springcontext.version>
+    <springmongo.version>4.4.4</springmongo.version>
+    <maven.compiler.source>21</maven.compiler.source>
+    <mongo.version>5.2.1</mongo.version>
+    <springboot.version>3.3.5</springboot.version>
+    <springboot.devtools.version>3.4.5</springboot.devtools.version>
+    <jda.version>5.1.2</jda.version>
+    <maven.compiler.target>21</maven.compiler.target>
+    <jakarta.validation.version>3.1.0</jakarta.validation.version>
+    <figlet.version>0.0.9</figlet.version>
   </properties>
 </project>

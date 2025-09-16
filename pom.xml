@@ -8,6 +8,26 @@
     <artifactId>BunnyNexus</artifactId>
     <version>4.0</version>
 
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <jda.version>5.1.2</jda.version>
+        <mongo.version>5.2.1</mongo.version>
+        <dotenv.version>3.0.0</dotenv.version>
+        <slf4j.version>2.0.17</slf4j.version>
+        <logback.version>1.5.18</logback.version>
+        <classgraph.version>4.8.177</classgraph.version>
+        <figlet.version>0.0.9</figlet.version>
+        <springmongo.version>4.4.4</springmongo.version>
+        <jakarta.validation.version>3.1.0</jakarta.validation.version>
+        <springcontext.version>6.2.6</springcontext.version>
+        <springboot.version>3.3.5</springboot.version>
+        <javax.annotation.version>1.2</javax.annotation.version>
+        <springboot.devtools.version>3.4.5</springboot.devtools.version>
+    </properties>
+
     <build>
         <plugins>
             <plugin>
@@ -35,27 +55,20 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.5.0</version>
             </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${springboot.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
-
-    <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-        <jda.version>5.1.2</jda.version>
-        <mongo.version>5.2.1</mongo.version>
-        <dotenv.version>3.0.0</dotenv.version>
-        <slf4j.version>2.0.17</slf4j.version>
-        <logback.version>1.5.18</logback.version>
-        <classgraph.version>4.8.177</classgraph.version>
-        <figlet.version>0.0.9</figlet.version>
-        <springmongo.version>4.4.4</springmongo.version>
-        <jakarta.validation.version>3.1.0</jakarta.validation.version>
-        <springcontext.version>6.2.6</springcontext.version>
-        <springboot.version>3.3.5</springboot.version>
-        <javax.annotation.version>1.2</javax.annotation.version>
-    </properties>
 
     <dependencies>
         <dependency>
@@ -84,6 +97,13 @@
             <groupId>io.github.cdimascio</groupId>
             <artifactId>dotenv-java</artifactId>
             <version>${dotenv.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <version>${springboot.devtools.version}</version>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
