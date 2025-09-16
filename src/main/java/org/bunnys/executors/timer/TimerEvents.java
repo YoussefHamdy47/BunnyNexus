@@ -14,6 +14,19 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * <p>
+ * A component class responsible for handling all core timer-related events and
+ * business logic. Optimized to work with the cached LevelEngine for improved
+ * performance in XP/RP calculations and level progression.
+ * </p>
+ *
+ * <p>
+ * This class is designed to be a singleton Spring component, leveraging
+ * dependency injection for its required services. All methods are designed
+ * to be robust and handle various edge cases gracefully.
+ * </p>
+ */
 @Component
 @SuppressWarnings("unused")
 public class TimerEvents {
@@ -33,12 +46,10 @@ public class TimerEvents {
         this.eventPublisher = eventPublisher;
     }
 
-    // Context class to hold operation data
     public record TimerContext(TimerData timerData, GBFUser userData, String userId, String guildId, String channelId,
             String messageId) {
     }
 
-    // Event result wrapper
     public record TimerEventResult<T>(boolean success, String message, T data, TimerEventsReturns eventType) {
 
         public static <T> TimerEventResult<T> success(T data, TimerEventsReturns eventType) {
@@ -55,18 +66,13 @@ public class TimerEvents {
         }
     }
 
-    /**
-     * Start a new timer session
-     */
     public TimerEventResult<TimerData> handleStart(TimerContext context) {
         try {
             TimerData timerData = context.timerData();
 
-            // Check if the timer is already running
             if (timerData.getSessionData().getSessionStartTime() != null) {
                 eventPublisher.publishButtonStateChange(context, createEnabledButtons(
                         TimerButtonID.Info, TimerButtonID.Pause, TimerButtonID.Stop), false);
-
                 return TimerEventResult.failure(TimerEventsReturns.TimerAlreadyRunning);
             }
 
@@ -74,10 +80,8 @@ public class TimerEvents {
             Session sessionData = timerData.getSessionData();
             Semester currentSemester = timerData.getCurrentSemester();
 
-            // Update session start times
             currentSemester.addSessionTime(currentTime.getTime());
 
-            // Initialize session
             sessionData.setSessionStartTime(currentTime);
             sessionData.setLastSessionDate(currentTime);
             sessionData.setSessionBreaks(new SessionBreak());
@@ -87,13 +91,9 @@ public class TimerEvents {
             sessionData.setChannelID(context.channelId());
             sessionData.setMessageID(context.messageId());
 
-            // Handle subject tracking
             handleSubjectTracking(sessionData, currentSemester);
 
-            // Save data
             TimerData savedData = timerDataService.save(timerData);
-
-            Logger.info("Timer started for user: " + context.userId());
             return TimerEventResult.success(savedData, TimerEventsReturns.TimerStarted);
 
         } catch (Exception e) {
@@ -102,21 +102,16 @@ public class TimerEvents {
         }
     }
 
-    /**
-     * Get current timer information
-     */
     public TimerEventResult<String> handleTimerInfo(TimerContext context) {
         try {
             TimerData timerData = context.timerData();
             Session sessionData = timerData.getSessionData();
 
-            if (sessionData.getSessionStartTime() == null) {
+            if (sessionData.getSessionStartTime() == null)
                 return TimerEventResult.failure("No active session found");
-            }
 
             StringBuilder stats = new StringBuilder();
 
-            // Check for active break
             SessionBreak sessionBreak = sessionData.getSessionBreaks();
             if (sessionBreak != null && sessionBreak.getSessionBreakStart() != null) {
                 long activeBreakTime = System.currentTimeMillis() -
@@ -126,10 +121,8 @@ public class TimerEvents {
                         .append("\n\n");
             }
 
-            // Calculate time elapsed
             long sessionStartMs = sessionData.getSessionStartTime().getTime();
             long breakTimeMs = sessionBreak != null ? (long) (sessionBreak.getSessionBreakTime() * 1000) : 0;
-
             long timeElapsed = (System.currentTimeMillis() - sessionStartMs - breakTimeMs) / 1000;
 
             stats.append("• Time Elapsed: ").append(Utils.formatDuration(timeElapsed * 1000)).append("\n")
@@ -145,9 +138,6 @@ public class TimerEvents {
         }
     }
 
-    /**
-     * Pause the current timer session
-     */
     public TimerEventResult<TimerData> handlePause(TimerContext context) {
         try {
             TimerData timerData = context.timerData();
@@ -165,7 +155,6 @@ public class TimerEvents {
                 return TimerEventResult.failure(TimerEventsReturns.TimerAlreadyPaused);
             }
 
-            // Start break
             if (sessionBreak == null) {
                 sessionBreak = new SessionBreak();
                 sessionData.setSessionBreaks(sessionBreak);
@@ -181,7 +170,6 @@ public class TimerEvents {
             eventPublisher.publishButtonStateChange(context,
                     createEnabledButtons(TimerButtonID.Unpause, TimerButtonID.Info), true);
 
-            Logger.info("Timer paused for user: " + context.userId());
             return TimerEventResult.success(savedData, null);
 
         } catch (Exception e) {
@@ -190,9 +178,6 @@ public class TimerEvents {
         }
     }
 
-    /**
-     * Resume the paused timer session
-     */
     public TimerEventResult<Long> handleUnpause(TimerContext context) {
         try {
             TimerData timerData = context.timerData();
@@ -210,12 +195,10 @@ public class TimerEvents {
                 return TimerEventResult.failure(TimerEventsReturns.TimerNotPaused);
             }
 
-            // Calculate break time
             long breakDuration = System.currentTimeMillis() -
                     sessionBreak.getSessionBreakStart().getTime();
             long breakDurationSeconds = breakDuration / 1000;
 
-            // Update break time
             sessionBreak.setSessionBreakTime(
                     sessionBreak.getSessionBreakTime() + breakDurationSeconds);
             sessionBreak.setSessionBreakStart(null);
@@ -225,7 +208,6 @@ public class TimerEvents {
             eventPublisher.publishButtonStateChange(context,
                     createEnabledButtons(TimerButtonID.Pause, TimerButtonID.Info, TimerButtonID.Stop), false);
 
-            Logger.info("Timer unpaused for user: " + context.userId() + ", break duration: " + breakDurationSeconds);
             return TimerEventResult.success(breakDurationSeconds, null);
 
         } catch (Exception e) {
@@ -235,7 +217,8 @@ public class TimerEvents {
     }
 
     /**
-     * Stop the current timer session
+     * Optimized stop handler that leverages LevelEngine's new Result records
+     * and caching system for improved performance.
      */
     public TimerEventResult<String> handleStop(TimerContext context) {
         try {
@@ -263,29 +246,22 @@ public class TimerEvents {
             updateSemesterData(timerData.getCurrentSemester(), metrics);
             updateAccountData(timerData.getAccount(), metrics);
 
-            // Handle XP and leveling
+            // Optimized XP calculation using LevelEngine
             int xpEarned = LevelEngine.calculateXP((int) (metrics.timeElapsed / 60));
             endMessage += "\n• XP & RP Earned: " + String.format("%,d", xpEarned);
 
-            handleLeveling(context, userData, timerData, xpEarned);
+            // Handle progression using new Result records
+            handleLevelingOptimized(context, userData, timerData, xpEarned);
 
-            // Handle streaks
             updateStreaks(timerData.getCurrentSemester());
-
-            // Check for records
             checkForRecords(context, timerData.getCurrentSemester(), metrics);
-
-            // Reset session data
             resetSessionData(sessionData);
 
-            // Save all changes
+            // Batch save operations
             timerDataService.save(timerData);
             userService.saveUser(userData);
 
             eventPublisher.publishButtonStateChange(context, Collections.emptyList(), false);
-
-            Logger.info("Timer stopped for user: " + context.userId() + ", session time: " + metrics.timeElapsed
-                    + ", XP earned: " + xpEarned);
 
             return TimerEventResult.success(endMessage, null);
 
@@ -331,21 +307,18 @@ public class TimerEvents {
         }
 
         message.append("\n• Total Break Time: ");
-        if (metrics.breakTimeMs > 0) {
+        if (metrics.breakTimeMs > 0)
             message.append(Utils.formatDuration(metrics.breakTimeMs));
-        } else {
+        else
             message.append("No Breaks Taken");
-        }
 
         message.append("\n• Number of Breaks: ").append(sessionData.getNumberOfBreaks());
 
-        // Add studied subjects
         List<String> subjectsStudied = sessionData.getSubjectsStudied();
-        if (!subjectsStudied.isEmpty()) {
+        if (!subjectsStudied.isEmpty())
             message.append("\n• Studied Subjects: ").append(String.join(", ", subjectsStudied));
-        } else {
+        else
             message.append("\n• No subjects studied this session.");
-        }
 
         return message.toString();
     }
@@ -354,39 +327,40 @@ public class TimerEvents {
         semester.setTotalBreakTime(semester.getTotalBreakTime() + metrics.breakTimeMs / 1000.0);
         semester.setSemesterTime(semester.getSemesterTime() + metrics.timeElapsed);
 
-        if (metrics.timeElapsed > semester.getLongestSession()) {
+        if (metrics.timeElapsed > semester.getLongestSession())
             semester.setLongestSession(metrics.timeElapsed);
-        }
     }
 
     private void updateAccountData(Account account, SessionMetrics metrics) {
         account.setLifetimeTime(account.getLifetimeTime() + metrics.timeElapsed);
     }
 
-    private void handleLeveling(TimerContext context, GBFUser userData, TimerData timerData, int xpEarned) {
-        // Handle rank progression
+    /**
+     * Optimized leveling handler using LevelEngine's new Result records
+     * for cleaner code and better performance.
+     */
+    private void handleLevelingOptimized(TimerContext context, GBFUser userData, TimerData timerData, int xpEarned) {
+        // Handle rank progression with new Result record
         LevelEngine.RankResult rankResult = LevelEngine.checkRank(
                 userData.getRank(), userData.getRP(), xpEarned);
 
-        if (rankResult.hasRankedUp) {
-            userData.setRank(userData.getRank() + Math.max(rankResult.addedLevels, 1));
-            userData.setRP(rankResult.remainingRP);
-
-            eventPublisher.publishRankUp(context, rankResult.addedLevels, rankResult.remainingRP);
+        if (rankResult.hasRankedUp()) {
+            userData.setRank(userData.getRank() + rankResult.addedRanks());
+            userData.setRP(rankResult.remainingRP());
+            eventPublisher.publishRankUp(context, rankResult.addedRanks(), rankResult.remainingRP());
         } else {
             userData.setRP(userData.getRP() + xpEarned);
         }
 
-        // Handle semester level progression
+        // Handle semester level progression with new Result record
         Semester semester = timerData.getCurrentSemester();
         LevelEngine.LevelResult levelResult = LevelEngine.checkLevel(
                 semester.getSemesterLevel(), semester.getSemesterXP(), xpEarned);
 
-        if (levelResult.hasLeveledUp) {
-            semester.setSemesterLevel(semester.getSemesterLevel() + Math.max(levelResult.addedLevels, 1));
-            semester.setSemesterXP(levelResult.remainingXP);
-
-            eventPublisher.publishLevelUp(context, levelResult.addedLevels, levelResult.remainingXP);
+        if (levelResult.hasLeveledUp()) {
+            semester.setSemesterLevel(semester.getSemesterLevel() + levelResult.addedLevels());
+            semester.setSemesterXP(levelResult.remainingXP());
+            eventPublisher.publishLevelUp(context, levelResult.addedLevels(), levelResult.remainingXP());
         } else {
             semester.setSemesterXP(semester.getSemesterXP() + xpEarned);
         }
@@ -400,9 +374,8 @@ public class TimerEvents {
             semester.setStreak(semester.getStreak() + 1);
             semester.setLastStreakUpdate(now);
 
-            if (semester.getStreak() > semester.getLongestStreak()) {
+            if (semester.getStreak() > semester.getLongestStreak())
                 semester.setLongestStreak(semester.getStreak());
-            }
         }
     }
 

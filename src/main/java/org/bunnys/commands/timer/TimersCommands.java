@@ -50,15 +50,17 @@ public class TimersCommands extends SlashCommand {
                 // Delegate to the StatsSubcommandExecutor (handles replies and error messages)
                 if (statsExecutor == null) {
                     // Fallback: if autowiring didn't run, notify the user
-                    interaction.reply("Stats executor not available. Please contact the bot admin.").setEphemeral(true).queue();
+                    interaction.reply("Stats executor not available. Please contact the bot admin.").setEphemeral(true)
+                            .queue();
                     return;
                 }
 
-                statsExecutor.execute(client, interaction, ephemeral);
+                statsExecutor.execute(interaction, ephemeral);
             }
 
             case "register" -> {
-                interaction.reply("Register subcommand not implemented in this handler yet.").setEphemeral(true).queue();
+                interaction.reply("Register subcommand not implemented in this handler yet.").setEphemeral(true)
+                        .queue();
             }
 
             default -> interaction.reply("Unknown subcommand").setEphemeral(true).queue();

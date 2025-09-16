@@ -4,7 +4,6 @@ import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.interaction.command.UserContextInteractionEvent;
 import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
-import org.bunnys.database.services.UserService;
 import org.bunnys.executors.user.UserAvatar;
 import org.bunnys.handler.BunnyNexus;
 import org.bunnys.handler.commands.slash.ContextCommandConfig;

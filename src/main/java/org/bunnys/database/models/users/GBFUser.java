@@ -23,6 +23,7 @@ public class GBFUser {
 
     @NotNull
     @Min(0)
+    @Field("Rank")
     private Integer rank = 0;
 
     @NotNull
