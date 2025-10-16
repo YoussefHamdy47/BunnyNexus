@@ -28,13 +28,18 @@ public class TimerDataService {
     @Transactional
     @CacheEvict(value = "timerData", key = "#timerData.id")
     public TimerData save(TimerData timerData) {
-        if (timerData == null) {
+        if (timerData == null)
             throw new IllegalArgumentException("Timer data cannot be null");
-        }
 
         try {
+            logger.debug("Saving timer data with ID: {}. Semester subjects: {}",
+                    timerData.getId(),
+                    timerData.getCurrentSemester().getSemesterSubjects());
+
             TimerData savedData = timerDataRepository.save(timerData);
-            logger.debug("Successfully saved timer data with ID: {}", savedData.getId());
+            logger.debug("Successfully saved timer data with ID: {}. Updated subjects: {}",
+                    savedData.getId(),
+                    savedData.getCurrentSemester().getSemesterSubjects());
             return savedData;
         } catch (Exception e) {
             logger.error("Error saving timer data", e);

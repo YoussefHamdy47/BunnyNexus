@@ -140,7 +140,7 @@ public final class Timers {
             throw new IllegalStateException("Subject '" + subject.getSubjectName() + "' already exists for userID: "
                     + userID + " in the current semester");
 
-        String grade = "N/A";
+        String grade = subject.getGrade().getDisplayName();
         Integer creditHours = subject.getCreditHours() != null ? subject.getCreditHours() : 1;
         return new GBFUser.Subject(
                 subject.getSubjectName(),
@@ -303,189 +303,170 @@ public final class Timers {
         return semester;
     }
 
-    // ---------------- Optimized statDisplay using LevelEngine caching
-    // ----------------
+    // ---------------- Stats Formatting (Single Source of Truth) ----------------
 
     /**
-     * Generates comprehensive study statistics with optimized calculations
-     * using LevelEngine's caching system for improved performance.
+     * Returns formatted statistics optimized for Discord embeds.
+     * This is the single source of truth for stats formatting.
      */
-    public String statDisplay() {
+    public String getFormattedStats() {
         checkUser();
-        TimerStats localStats = new TimerStats(timerData, userData);
 
-        StringBuilder stats = new StringBuilder();
-        String gap = "\n";
-        NumberFormat nf = NumberFormat.getInstance(Locale.US);
+        if (timerStats == null)
+            timerStats = new TimerStats(timerData, userData);
 
-        // Lifetime stats
-        long lifetimeMs = localStats.totalStudyTimeMs();
-        stats.append("• Lifetime Study Time: ");
-        if (lifetimeMs != 0) {
-            stats.append(Utils.formatDuration(lifetimeMs))
-                    .append(" [")
-                    .append(nf.format((double) lifetimeMs / (1000.0 * 60.0 * 60.0)))
-                    .append(" hours]");
-        } else {
-            stats.append("0s");
-        }
-        stats.append("\n");
+        TimerStats.OptimizedSummary summary = timerStats.snapshot();
+        StringBuilder stats = new StringBuilder(2000);
 
-        // Semester-specific stats
-        if (hasSemester()) {
-            appendSemesterStats(stats, localStats, nf, gap);
-        }
-
-        // Common stats
-        stats.append("• Study Streak: ").append(localStats.currentStreak()).append(" 🔥\n");
-        stats.append("• Longest Study Streak: ").append(localStats.longestStreak()).append(" 🔥\n");
-        stats.append(gap);
-
-        if (hasSemester()) {
-            appendDetailedSemesterStats(stats, localStats, gap);
-            appendLevelingStats(stats, localStats);
-        }
+        // Build all sections
+        appendLifetimeStats(stats, summary);
+        appendSemesterStats(stats, summary);
+        appendStreakStats(stats);
+        appendRecordStats(stats, summary);
+        appendBreakStats(stats, summary);
+        appendSubjectStats(stats, summary);
+        appendProgressStats(stats, summary);
+        appendGPAStats(stats);
 
         return stats.toString();
     }
 
-    private boolean hasSemester() {
-        return timerData.getCurrentSemester() != null && timerData.getCurrentSemester().getSemesterName() != null;
-    }
-
-    private void appendSemesterStats(StringBuilder stats, TimerStats localStats, NumberFormat nf, String gap) {
-        long semMs = localStats.semesterTimeMs();
-        stats.append("• Semester Study Time: ");
-        if (semMs != 0) {
-            stats.append(Utils.formatDuration(semMs))
+    private void appendLifetimeStats(StringBuilder stats, TimerStats.OptimizedSummary s) {
+        stats.append("• Lifetime Study Time: ");
+        if (s.totalStudyTimeMs() > 0) {
+            stats.append(timerStats.humanDuration(s.totalStudyTimeMs()))
                     .append(" [")
-                    .append(nf.format((double) semMs / (1000.0 * 60.0 * 60.0)))
+                    .append(String.format(Locale.US, "%,.0f", s.totalStudyTimeMs() / 3_600_000.0))
                     .append(" hours]");
-        } else {
+        } else
             stats.append("0s");
-        }
-        stats.append("\n");
 
-        int sessions = localStats.sessionCount();
-        double weeksCount = Math.max(1, Math.floor((double) sessions / 7.0));
-        long avgPerWeekMs = (long) (semMs / weeksCount);
-        stats.append("• Average Session Time / 7 Sessions: ");
-        stats.append(avgPerWeekMs > 0
-                ? Utils.formatDuration(avgPerWeekMs) + " [" + Utils.formatDuration(avgPerWeekMs) + "]"
-                : "0s");
-        stats.append("\n");
-
-        stats.append("• Average Session Time: ").append(Utils.formatDuration(localStats.averageSessionTimeMs()))
-                .append("\n");
-        stats.append("• Total Sessions: ").append(sessions).append("\n");
-        stats.append(gap);
+        stats.append("\n\n");
     }
 
-    private void appendDetailedSemesterStats(StringBuilder stats, TimerStats localStats, String gap) {
-        double lsSeconds = timerData.getCurrentSemester().getLongestSession();
-        String longestSession = lsSeconds > 0.0 ? Utils.formatDuration((long) (lsSeconds * 1000.0)) : "0s";
-        stats.append("• Longest Session: ").append(longestSession).append("\n");
+    private void appendSemesterStats(StringBuilder stats, TimerStats.OptimizedSummary s) {
+        if (s.semesterTimeMs() == 0)
+            return;
 
-        Optional<Semester> longestSemester = localStats.longestSemester();
-        longestSemester.ifPresent(s -> stats.append("• Longest Semester: ")
-                .append(Utils.formatDuration((long) (s.getSemesterTime() * 1000.0)))
-                .append(" [").append(s.getSemesterTime() / 3600.0).append(" hours] - [").append(s.getSemesterName())
+        stats.append("• Semester Study Time: ")
+                .append(timerStats.humanDuration(s.semesterTimeMs()))
+                .append(" [")
+                .append(String.format(Locale.US, "%,.2f", s.semesterTimeMs() / 3_600_000.0))
+                .append(" hours]\n");
+
+        // Average per 7 sessions
+        int completeWeeks = s.sessionCount() / 7;
+        if (completeWeeks > 0) {
+            long avgPer7 = s.semesterTimeMs() / completeWeeks;
+            stats.append("• Average per 7 sessions: ")
+                    .append(timerStats.humanDuration(avgPer7)).append("\n");
+        } else
+            stats.append("• Average per 7 sessions: N/A (less than 7 sessions)\n");
+
+        stats.append("• Average Session Time: ")
+                .append(s.avgSessionMs() > 0 ? timerStats.humanDuration(s.avgSessionMs()) : "0s")
+                .append("\n");
+        stats.append("• Total Sessions: ").append(s.sessionCount()).append("\n\n");
+    }
+
+    private void appendStreakStats(StringBuilder stats) {
+        stats.append("• Study Streak: ").append(timerStats.currentStreak()).append(" 🔥\n");
+        stats.append("• Longest Study Streak: ").append(timerStats.longestStreak()).append(" 🔥\n\n");
+    }
+
+    private void appendRecordStats(StringBuilder stats, TimerStats.OptimizedSummary s) {
+        stats.append("• Longest Session: ")
+                .append(s.longestSessionMs() > 0
+                        ? timerStats.humanDuration(s.longestSessionMs())
+                        : "0s")
+                .append("\n");
+
+        timerStats.longestSemester().ifPresent(ls -> stats.append("• Longest Semester: ")
+                .append(timerStats.humanDuration(Math.round(ls.getSemesterTime() * 1000.0)))
+                .append(" [")
+                .append(String.format(Locale.US, "%,.2f", ls.getSemesterTime() / 3600.0))
+                .append(" hours] - [")
+                .append(ls.getSemesterName())
                 .append("]\n"));
 
-        stats.append(gap);
+        timerStats.averageStartTimeUnixSeconds().ifPresentOrElse(
+                unix -> stats.append("• Average Start Time: <t:").append(unix).append(":t>\n"),
+                () -> stats.append("• Average Start Time: N/A\n"));
 
-        // Break stats
-        stats.append("• Semester Break Time: ").append(Utils.formatDuration(localStats.breakTimeMs())).append("\n");
-        stats.append("• Total Breaks: ").append(localStats.breakCount()).append("\n");
-        stats.append("• Average Break Time: ").append(Utils.formatDuration(localStats.averageBreakTimeMs()))
-                .append("\n");
-        stats.append("• Average Time Between Breaks: ")
-                .append(Utils.formatDuration(localStats.averageTimeBetweenBreaksMs())).append("\n");
-        stats.append(gap);
-
-        // Start time stats
-        stats.append("• Average Start Time: ");
-        localStats.averageStartTimeUnixSeconds()
-                .ifPresentOrElse(sec -> stats.append("<t:").append(sec).append(":t>"),
-                        () -> stats.append("N/A"));
-        stats.append("\n").append(gap);
-
-        // Subject stats
-        appendSubjectStats(stats, localStats, gap);
+        stats.append("\n");
     }
 
-    private void appendSubjectStats(StringBuilder stats, TimerStats localStats, String gap) {
-        stats.append("• Total Subjects: ").append(localStats.subjectCount()).append("\n");
-        stats.append("• Total study instances across all subjects: ").append(localStats.totalTimesStudied())
-                .append("\n");
-
-        List<org.bunnys.database.models.timer.Subject> ordered = localStats.subjectsByTimesStudied();
-        if (!ordered.isEmpty()) {
-            stats.append("**\nSubject Stats**\n");
-            ordered.forEach(s -> stats.append("• ").append(s.getSubjectName()).append(" [")
-                    .append(s.getTimesStudied()).append("]\n"));
-        } else {
-            stats.append("**Subject Stats**\nN/A\n");
+    private void appendBreakStats(StringBuilder stats, TimerStats.OptimizedSummary s) {
+        if (s.breakCount() == 0) {
+            stats.append("• No breaks taken this semester\n\n");
+            return;
         }
 
-        stats.append("• Average Study Time Per Subject: ")
-                .append(Utils.formatDuration(localStats.averageStudyTimePerOccurrenceMs())).append("\n");
-        stats.append(gap);
+        stats.append("• Semester Break Time: ")
+                .append(timerStats.humanDuration(s.breakTimeMs())).append("\n");
+        stats.append("• Total Breaks: ").append(s.breakCount()).append("\n");
+        stats.append("• Average Break Time: ")
+                .append(timerStats.humanDuration(s.avgBreakMs())).append("\n\n");
+    }
+
+    private void appendSubjectStats(StringBuilder stats, TimerStats.OptimizedSummary s) {
+        stats.append("• Total Subjects: ").append(s.subjectCount()).append("\n");
+        stats.append("• Total study instances: ").append(s.totalTimesStudied()).append("\n");
+
+        List<Subject> topSubjects = timerStats.topSubjects(5);
+        if (!topSubjects.isEmpty()) {
+            stats.append("\n**Top Subjects**\n");
+            topSubjects.forEach(subject -> stats.append("• ").append(subject.getSubjectName())
+                    .append(" [").append(subject.getTimesStudied()).append("]\n"));
+        } else
+            stats.append("\n**Subject Stats**\nNo subjects studied\n");
+
+        stats.append("\n");
+    }
+
+    private void appendProgressStats(StringBuilder stats, TimerStats.OptimizedSummary s) {
+        if (s.semesterTimeMs() == 0)
+            return;
+
+        // Semester Level Progress
+        stats.append(LevelEngine.rankUpEmoji(s.semesterLevel()))
+                .append(" Semester Level: ").append(s.semesterLevel()).append("\n")
+                .append("• XP to reach level ").append(s.semesterLevel() + 1).append(": ")
+                .append(String.format(Locale.US, "%,d", s.semesterXP())).append("/")
+                .append(String.format(Locale.US, "%,d", s.semesterXPRequired())).append("\n")
+                .append(timerStats.progressBarForLevel()).append(" [")
+                .append(s.semesterPercent()).append("%]\n")
+                .append("• Time until next level: ")
+                .append(timerStats.humanDuration(timerStats.msToNextLevel())).append("\n\n");
+
+        // Account Level Progress
+        stats.append(LevelEngine.rankUpEmoji(s.accountLevel()))
+                .append(" Account Level: ").append(s.accountLevel()).append("\n")
+                .append("• RP to reach level ").append(s.accountLevel() + 1).append(": ")
+                .append(String.format(Locale.US, "%,d", s.accountRP())).append("/")
+                .append(String.format(Locale.US, "%,d", s.accountRPRequired())).append("\n")
+                .append(timerStats.progressBarForRank()).append(" [")
+                .append(s.accountPercent()).append("%]\n")
+                .append("• Time until next level: ")
+                .append(timerStats.humanDuration(timerStats.msToNextRank())).append("\n\n");
+    }
+
+    private void appendGPAStats(StringBuilder stats) {
+        try {
+            double gpa = timerStats.gpaResult().gpa().doubleValue();
+            stats.append("• GPA: ").append(String.format(Locale.US, "%.3f", gpa));
+        } catch (Exception e) {
+            stats.append("• GPA: N/A");
+        }
     }
 
     /**
-     * Optimized leveling stats using LevelEngine's cached calculations
+     * @deprecated Use getFormattedStats() instead.
+     *             This method is kept for backwards compatibility.
      */
-    private void appendLevelingStats(StringBuilder stats, TimerStats localStats) {
-        int semLevel = localStats.actualSemesterLevel();
-        int semXP = localStats.actualSemesterXP();
-        int accLevel = localStats.actualAccountLevel();
-        int accRP = localStats.actualAccountRP();
-
-        // Use LevelEngine's cached methods for requirements
-        int xpToNextLevel = LevelEngine.xpRequired(semLevel + 1);
-        int rpToNextLevel = LevelEngine.rpRequired(accLevel + 1);
-
-        NumberFormat nf = NumberFormat.getInstance(Locale.US);
-
-        // Semester progression
-        stats.append("Semester Level: ").append(semLevel).append("\n");
-        stats.append("• XP to reach level ").append(semLevel + 1).append(": ")
-                .append(nf.format(semXP))
-                .append("/")
-                .append(nf.format(xpToNextLevel))
-                .append("\n");
-
-        int pctSem = localStats.percentageToNextLevel();
-        stats.append(localStats.progressBarForLevel()).append(" [").append(pctSem).append("%]\n");
-
-        // Use LevelEngine's hoursRequired method for time calculations
-        double hoursToNext = LevelEngine.hoursRequired(xpToNextLevel - semXP);
-        stats.append("• Time until level ").append(semLevel + 1).append(": ")
-                .append(Utils.formatDuration((long) (hoursToNext * 3600 * 1000))).append("\n");
-
-        // Account progression
-        stats.append("Account Level: ").append(accLevel).append("\n");
-        stats.append("• RP to reach level ").append(accLevel + 1).append(": ")
-                .append(nf.format(accRP))
-                .append("/")
-                .append(nf.format(rpToNextLevel))
-                .append("\n");
-
-        int pctAcc = localStats.percentageToNextRank();
-        stats.append(localStats.progressBarForRank()).append(" [").append(pctAcc).append("%]\n");
-
-        double hoursToNextRank = LevelEngine.hoursRequired(rpToNextLevel - accRP);
-        stats.append("• Time until level ").append(accLevel + 1).append(": ")
-                .append(Utils.formatDuration((long) (hoursToNextRank * 3600 * 1000))).append("\n");
-
-        stats.append("\n");
-        stats.append("• GPA: ");
-        try {
-            stats.append(localStats.gpaResult().gpa().setScale(3, java.math.RoundingMode.HALF_UP));
-        } catch (Exception ignored) {
-            stats.append("N/A");
-        }
+    @Deprecated
+    public String statDisplay() {
+        return getFormattedStats();
     }
 
     // ---------------- GPA menu ----------------
